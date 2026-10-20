@@ -13,29 +13,46 @@ from src.analytics.metrics import kpis, group_summary, monthly_trend, simulate
 
 st.set_page_config(page_title="RetailIQ | Business Analytics", page_icon="â–¦", layout="wide", initial_sidebar_state="expanded")
 
-st.markdown("""
+appearance = st.sidebar.radio("Appearance", ["Light", "Dark"], horizontal=True, label_visibility="collapsed", key="appearance")
+dark = appearance == "Dark"
+theme = {
+    "canvas": "#0b1220" if dark else "#f7f9fc",
+    "surface": "#111c2e" if dark else "#ffffff",
+    "ink": "#e6edf7" if dark else "#14243a",
+    "muted": "#9aabc1" if dark else "#64748b",
+    "line": "#26364d" if dark else "#e5eaf1",
+    "grid": "#223148" if dark else "#edf1f5",
+    "blue": "#72a7ff" if dark else "#2f6fed",
+    "sidebar": "#0e1828" if dark else "#ffffff",
+    "header": "rgba(11,18,32,.94)" if dark else "rgba(247,249,252,.92)",
+}
+st.markdown(f"""
 <style>
-:root { --ink:#14243a; --muted:#64748b; --line:#e5eaf1; --blue:#2f6fed; --canvas:#f7f9fc; }
-.stApp { background:var(--canvas); color:var(--ink); }
-[data-testid="stHeader"] { background:rgba(247,249,252,.92); }
-.block-container { max-width:1440px; padding:1.55rem 2.2rem 3rem; }
-[data-testid="stSidebar"] { background:#fff; border-right:1px solid var(--line); }
-[data-testid="stSidebar"] > div:first-child { padding-top:1.25rem; }
-[data-testid="stSidebar"] [data-testid="stRadio"] label { font-weight:550; }
-h1,h2,h3 { color:var(--ink); letter-spacing:-.025em; }
-h1 { font-size:2rem !important; font-weight:700 !important; margin-bottom:.15rem !important; }
-h2 { font-size:1.35rem !important; font-weight:650 !important; }
-h3 { font-size:1.08rem !important; font-weight:650 !important; }
-[data-testid="stMetric"] { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; min-height:112px; box-shadow:0 1px 2px rgba(20,36,58,.03); }
-[data-testid="stMetricLabel"] { color:#64748b; font-size:.84rem; font-weight:600; }
-[data-testid="stMetricValue"] { color:#14243a; font-size:clamp(1.35rem,2vw,1.9rem); font-weight:700; white-space:nowrap; }
-[data-testid="stVerticalBlock"] > [data-testid="stPlotlyChart"] { background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; }
-[data-testid="stDataFrame"] { border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-[data-testid="stFileUploader"] { border:1px dashed #cbd5e1; border-radius:10px; padding:8px; background:#fff; }
-div[data-testid="stAlert"] { border-radius:10px; }
-.page-intro { color:#64748b; margin:.1rem 0 1.35rem; font-size:.98rem; }
-.eyebrow { color:#2f6fed; font-size:.73rem; text-transform:uppercase; letter-spacing:.11em; font-weight:700; margin:0 0 .25rem; }
-@media (max-width: 900px) { .block-container { padding:1.2rem 1rem 2rem; } [data-testid="stMetric"] { padding:13px; } }
+:root {{ --ink:{theme['ink']}; --muted:{theme['muted']}; --line:{theme['line']}; --blue:{theme['blue']}; --canvas:{theme['canvas']}; }}
+.stApp {{ background:radial-gradient(ellipse at 50% -20%, {'#1c3150' if dark else '#eaf1fc'} 0%, var(--canvas) 54%); color:var(--ink); }}
+[data-testid="stHeader"] {{ background:{theme['header']}; }}
+[data-testid="stSidebar"] {{ background:{theme['sidebar']}; border-right:1px solid var(--line); }}
+[data-testid="stSidebar"] div[data-testid="stRadio"] > label {{ color:var(--muted); }}
+.block-container {{ max-width:1440px; padding:1.55rem 2.2rem 3rem; }}
+[data-testid="stSidebar"] > div:first-child {{ padding-top:1.25rem; }}
+[data-testid="stSidebar"] [data-testid="stRadio"] label {{ font-weight:550; }}
+h1,h2,h3,p,label {{ color:var(--ink); letter-spacing:-.015em; }}
+h1 {{ font-size:2rem !important; font-weight:700 !important; margin-bottom:.15rem !important; }}
+h2 {{ font-size:1.35rem !important; font-weight:650 !important; }}
+h3 {{ font-size:1.08rem !important; font-weight:650 !important; }}
+[data-testid="stMetric"] {{ background:{theme['surface']}; border:1px solid var(--line); border-radius:14px; padding:16px 18px; min-height:112px; box-shadow:0 8px 24px rgba(0,0,0,{'0.18' if dark else '0.035'}); transition:transform .18s ease,border-color .18s ease; }}
+[data-testid="stMetric"]:hover {{ transform:translateY(-2px); border-color:var(--blue); }}
+[data-testid="stMetricLabel"] {{ color:var(--muted); font-size:.84rem; font-weight:600; }}
+[data-testid="stMetricValue"] {{ color:var(--ink); font-size:clamp(1.35rem,2vw,1.9rem); font-weight:700; white-space:nowrap; }}
+[data-testid="stVerticalBlock"] > [data-testid="stPlotlyChart"] {{ background:{theme['surface']}; border:1px solid var(--line); border-radius:14px; padding:8px; box-shadow:0 8px 24px rgba(0,0,0,{'0.16' if dark else '0.025'}); }}
+[data-testid="stDataFrame"] {{ border:1px solid var(--line); border-radius:10px; overflow:hidden; }}
+[data-testid="stFileUploader"] {{ border:1px dashed {theme['line']}; border-radius:10px; padding:8px; background:{theme['surface']}; }}
+div[data-testid="stAlert"] {{ border-radius:10px; }}
+.page-intro {{ color:var(--muted); margin:.1rem 0 1.35rem; font-size:.98rem; }}
+.eyebrow {{ color:var(--blue); font-size:.73rem; text-transform:uppercase; letter-spacing:.11em; font-weight:700; margin:0 0 .25rem; }}
+[data-baseweb="input"] > div,[data-baseweb="select"] > div,[data-testid="stDateInput"] input {{ background:{theme['surface']}; border-color:var(--line); }}
+[data-testid="stCaptionContainer"] {{ color:var(--muted); }}
+@media (max-width: 900px) {{ .block-container {{ padding:1.2rem 1rem 2rem; }} [data-testid="stMetric"] {{ padding:13px; }} }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -135,15 +152,16 @@ def empty():
 
 def polish(fig, height=350, currency_axes=()):
     fig.update_layout(
-        template="plotly_white", height=height, margin=dict(l=18, r=18, t=58, b=18),
-        font=dict(family="Arial, sans-serif", color="#14243a", size=12),
-        title=dict(font=dict(size=16, color="#14243a"), x=0.02, xanchor="left"),
-        colorway=["#2f6fed", "#62a0ff", "#183b6b", "#8bb8ff", "#91a4bb"],
+        template="plotly_dark" if dark else "plotly_white", height=height, margin=dict(l=18, r=18, t=58, b=18),
+        paper_bgcolor=theme["surface"], plot_bgcolor=theme["surface"],
+        font=dict(family="Arial, sans-serif", color=theme["ink"], size=12),
+        title=dict(font=dict(size=16, color=theme["ink"]), x=0.02, xanchor="left"),
+        colorway=[theme["blue"], "#62a0ff", "#34d399", "#fbbf24", "#a78bfa"],
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
         hoverlabel=dict(bgcolor="#14243a", font_color="#fff"),
     )
-    fig.update_xaxes(showgrid=False, linecolor="#dce3ec", tickfont=dict(color="#52647a"))
-    fig.update_yaxes(showgrid=True, gridcolor="#edf1f5", zerolinecolor="#cbd5e1", tickfont=dict(color="#52647a"))
+    fig.update_xaxes(showgrid=False, linecolor=theme["line"], tickfont=dict(color=theme["muted"]))
+    fig.update_yaxes(showgrid=True, gridcolor=theme["grid"], zerolinecolor=theme["line"], tickfont=dict(color=theme["muted"]))
     for axis in currency_axes:
         getattr(fig.layout, f"{axis}axis").tickprefix = "$"
         getattr(fig.layout, f"{axis}axis").tickformat = ",.2s"
