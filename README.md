@@ -21,13 +21,13 @@ The app works in CSV-only mode without PostgreSQL. Locally, the CSV is read from
 
 ### Automatic data loading on Streamlit Community Cloud
 
-To show the populated dashboard without asking visitors to upload a file, host the CSV at a stable HTTPS endpoint that you are permitted to use, then add this secret in the app's **Settings → Secrets**:
+To show the populated dashboard without asking visitors to upload a file, host the CSV at a stable HTTPS endpoint that you are permitted to use, then add this secret in the deployed app's **Settings → Secrets** (or in **Advanced settings → Secrets** while deploying):
 
 ```toml
 SUPERSTORE_CSV_URL = "https://your-permitted-host.example/Sample%20-%20Superstore.csv"
 ```
 
-When the local file is absent, RetailIQ fetches and caches that CSV for one hour. Keep any access tokens out of this URL; this loader is intended for an authorized stable HTTPS CSV endpoint. If the provider requires authentication, use an owner-controlled object store and extend the loader with its read-only SDK credentials stored as Streamlit secrets. The raw dataset is never added to the GitHub repository.
+The URL must be a direct HTTPS URL returning the CSV bytes (not a Kaggle dataset page or a ZIP file). When the local file is absent, RetailIQ fetches and caches that CSV for one hour. Do not put access tokens in the URL. If the provider requires authentication, use an owner-controlled object store and extend the loader with read-only SDK credentials stored as Streamlit secrets. The raw dataset is never added to the GitHub repository. Streamlit saves cloud secrets outside GitHub; never commit `.streamlit/secrets.toml`.
 
 ## PostgreSQL (optional)
 

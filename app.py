@@ -3,6 +3,7 @@ import sys
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+from streamlit.errors import StreamlitSecretNotFoundError
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -39,13 +40,13 @@ try:
     elif path.exists():
         df, quality = load_csv(path)
     else:
-        try: source_url = st.secrets.get("SUPERSTORE_CSV_URL", "")
-        except Exception: source_url = ""
+        try: source_url = st.secrets["SUPERSTORE_CSV_URL"]
+        except (KeyError, StreamlitSecretNotFoundError): source_url = ""
         if not source_url:
             raise FileNotFoundError
         df, quality = load_hosted(source_url)
 except FileNotFoundError:
-    st.info("Dataset source is not configured. Set `SUPERSTORE_CSV_URL` in Streamlit Cloud secrets to a stable HTTPS CSV source you are allowed to use, or add the CSV to `data/raw/` when running locally.")
+    st.error(f"Dataset not found at `{path}` and no hosted source is configured. In Streamlit Community Cloud, open your app's Settings → Secrets and add `SUPERSTORE_CSV_URL = \"https://your-host/path/Sample%20-%20Superstore.csv\"` using a stable, permitted URL that returns the CSV file directly over HTTPS. Do not use a Kaggle page URL or a ZIP link. Locally, place the CSV at `{path}`.")
     st.stop()
 except Exception as exc:
     st.error(f"Could not load the dataset: {exc}")
