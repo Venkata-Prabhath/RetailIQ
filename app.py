@@ -50,6 +50,15 @@ h3 {{ font-size:1.08rem !important; font-weight:650 !important; }}
 div[data-testid="stAlert"] {{ border-radius:10px; }}
 .page-intro {{ color:var(--muted); margin:.1rem 0 1.35rem; font-size:.98rem; }}
 .eyebrow {{ color:var(--blue); font-size:.73rem; text-transform:uppercase; letter-spacing:.11em; font-weight:700; margin:0 0 .25rem; }}
+.brand-lockup {{ display:flex; align-items:center; gap:11px; margin:.25rem 0 .2rem; }}
+.brand-mark {{ width:38px; height:38px; display:grid; place-items:center; border-radius:12px; color:#fff; font-size:1.05rem; font-weight:800; background:linear-gradient(145deg,#3985ff,#2455bd); box-shadow:0 6px 16px rgba(47,111,237,.28); }}
+.brand-name {{ color:var(--ink); font-size:1.3rem; font-weight:800; letter-spacing:-.05em; line-height:1; }}
+.brand-iq {{ color:var(--blue); }}
+.brand-tag {{ color:var(--muted); font-size:.68rem; margin-top:5px; letter-spacing:.025em; }}
+.brand-banner {{ display:inline-flex; align-items:center; gap:9px; padding:7px 12px 7px 8px; border:1px solid var(--line); border-radius:999px; background:{theme['surface']}; box-shadow:0 4px 14px rgba(0,0,0,{'0.12' if dark else '0.035'}); margin:0 0 .75rem; }}
+.brand-dot {{ width:25px; height:25px; display:grid; place-items:center; border-radius:50%; background:linear-gradient(145deg,#3985ff,#2455bd); color:#fff; font-size:.7rem; font-weight:800; }}
+.brand-banner-name {{ color:var(--ink); font-weight:750; font-size:.82rem; letter-spacing:-.02em; }}
+.brand-banner-sub {{ color:var(--muted); font-size:.73rem; border-left:1px solid var(--line); padding-left:9px; }}
 [data-baseweb="input"] > div,[data-baseweb="select"] > div,[data-testid="stDateInput"] input {{ background:{theme['surface']}; border-color:var(--line); }}
 [data-testid="stCaptionContainer"] {{ color:var(--muted); }}
 @media (max-width: 900px) {{ .block-container {{ padding:1.2rem 1rem 2rem; }} [data-testid="stMetric"] {{ padding:13px; }} }}
@@ -72,9 +81,7 @@ def load_hosted(source_url):
 PAGES = ["Executive overview", "Profitability explorer", "Discount intelligence", "Customer analytics", "Decision simulator", "Data quality & methodology"]
 
 with st.sidebar:
-    st.markdown("<div class='eyebrow'>Business intelligence</div>", unsafe_allow_html=True)
-    st.markdown("## RetailIQ")
-    st.caption("Sales Â· Profitability Â· Decisions")
+    st.markdown("<div class='brand-lockup'><div class='brand-mark'>R</div><div><div class='brand-name'>Retail<span class='brand-iq'>IQ</span></div><div class='brand-tag'>RETAIL INTELLIGENCE</div></div></div>", unsafe_allow_html=True)
     st.divider()
     page = st.radio("Workspace", PAGES, label_visibility="collapsed")
     st.divider()
@@ -127,7 +134,7 @@ for col, vals in filters.items():
     filtered = filtered[filtered[col].astype(str).isin(vals)] if vals else filtered.iloc[0:0]
 
 def header(title, description):
-    st.markdown("<div class='eyebrow'>RetailIQ analytics</div>", unsafe_allow_html=True)
+    st.markdown("<div class='brand-banner'><span class='brand-dot'>R</span><span class='brand-banner-name'>Retail<span class='brand-iq'>IQ</span></span><span class='brand-banner-sub'>RETAIL INTELLIGENCE</span></div>", unsafe_allow_html=True)
     st.title(title)
     st.markdown(f"<div class='page-intro'>{description}</div>", unsafe_allow_html=True)
 
