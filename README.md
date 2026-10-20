@@ -17,7 +17,17 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-The app works in CSV-only mode without PostgreSQL. Upload data through the sidebar or use the documented local path.
+The app works in CSV-only mode without PostgreSQL. Locally, the CSV is read from `data/raw/`; on Community Cloud, it can load automatically from an owner-configured hosted CSV URL. The Kaggle upload used to obtain the current local copy does not show us an explicit redistribution grant, so the raw file remains excluded from GitHub. Kaggle documents that dataset licenses are publisher-selected and dataset-specific ([Kaggle dataset licensing](https://www.kaggle.com/docs/datasets)). Tableau lists a downloadable Superstore sample, but the page does not by itself establish a redistribution license ([Tableau sample data](https://public.tableau.com/app/learn/sample-data)). Do not use either source as a public mirror unless its applicable terms permit it.
+
+### Automatic data loading on Streamlit Community Cloud
+
+To show the populated dashboard without asking visitors to upload a file, host the CSV at a stable HTTPS endpoint that you are permitted to use, then add this secret in the app's **Settings → Secrets**:
+
+```toml
+SUPERSTORE_CSV_URL = "https://your-permitted-host.example/Sample%20-%20Superstore.csv"
+```
+
+When the local file is absent, RetailIQ fetches and caches that CSV for one hour. Keep any access tokens out of this URL; this loader is intended for an authorized stable HTTPS CSV endpoint. If the provider requires authentication, use an owner-controlled object store and extend the loader with its read-only SDK credentials stored as Streamlit secrets. The raw dataset is never added to the GitHub repository.
 
 ## PostgreSQL (optional)
 

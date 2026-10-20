@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from io import BytesIO
+from urllib.request import Request, urlopen
+from urllib.parse import urlparse
 import pandas as pd
 import numpy as np
 
@@ -69,6 +72,28 @@ def load_csv(path) -> tuple[pd.DataFrame, dict]:
         # The supplied Superstore export contains cp1252 punctuation in product names.
         raw = pd.read_csv(path, encoding="cp1252")
     return prepare_data(raw)
+
+def _read_csv_bytes(content: bytes) -> pd.DataFrame:
+    try:
+        return pd.read_csv(BytesIO(content), encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        return pd.read_csv(BytesIO(content), encoding="cp1252")
+
+def load_csv_url(url: str) -> tuple[pd.DataFrame, dict]:
+    """Load CSV from a stable HTTPS URL configured by the app owner."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise ValueError("SUPERSTORE_CSV_URL must be a complete HTTPS URL.")
+    request = Request(url, headers={"User-Agent": "RetailIQ/1.0"})
+    try:
+        with urlopen(request, timeout=30) as response:
+            content = response.read()
+    except Exception as exc:
+        raise RuntimeError(f"Could not retrieve the configured dataset source: {exc}") from exc
+    try:
+        return prepare_data(_read_csv_bytes(content))
+    except Exception as exc:
+        raise ValueError(f"The configured HTTPS source did not return a valid Superstore CSV: {exc}") from exc
 
 def local_dataset_path() -> Path:
     return Path(__file__).resolve().parents[2] / "data" / "raw" / "Sample - Superstore.csv"

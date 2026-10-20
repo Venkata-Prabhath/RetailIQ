@@ -4,6 +4,7 @@ venv/
 __pycache__/
 .pytest_cache/
 .streamlit/secrets.toml
+# Keep downloaded source data local unless its redistribution license is verified.
 data/raw/*.csv
 data/processed/*
 reports/figures/*

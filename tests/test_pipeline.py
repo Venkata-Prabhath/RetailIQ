@@ -1,6 +1,6 @@
 import pandas as pd
 import pytest
-from src.data.pipeline import prepare_data
+from src.data.pipeline import prepare_data, _read_csv_bytes, load_csv_url
 from src.analytics.metrics import kpis, group_summary, simulate
 
 @pytest.fixture
@@ -30,3 +30,10 @@ def test_discount_and_scenario(raw):
 def test_missing_required_column():
     with pytest.raises(ValueError, match="Required columns"):
         prepare_data(pd.DataFrame({"Sales":[1]}))
+
+def test_hosted_csv_encoding_and_https_requirement():
+    raw = _read_csv_bytes("Order Date,Sales,Profit\n1/2/2024,10,2\n".encode("cp1252"))
+    df,_ = prepare_data(raw)
+    assert df.sales.sum() == 10
+    with pytest.raises(ValueError, match="HTTPS"):
+        load_csv_url("http://example.com/data.csv")

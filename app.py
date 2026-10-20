@@ -6,7 +6,7 @@ import plotly.express as px
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from src.data.pipeline import load_csv, prepare_data, local_dataset_path
+from src.data.pipeline import load_csv, load_csv_url, prepare_data, local_dataset_path
 from src.analytics.metrics import kpis, group_summary, monthly_trend, simulate
 
 st.set_page_config(page_title="RetailIQ | Business Analytics", layout="wide", initial_sidebar_state="expanded")
@@ -22,6 +22,9 @@ def load_upload(data):
         raw = pd.read_csv(data, encoding="cp1252")
     return prepare_data(raw)
 
+@st.cache_data(ttl=3600, show_spinner="Loading the configured hosted dataset…")
+def load_hosted(source_url): return load_csv_url(source_url)
+
 pages = ["Executive overview", "Profitability explorer", "Discount intelligence", "Customer analytics", "Decision simulator", "Data quality & methodology"]
 with st.sidebar:
     st.subheader("RetailIQ")
@@ -31,10 +34,18 @@ with st.sidebar:
     path = local_dataset_path()
 
 try:
-    df, quality = load_upload(upload) if upload else load_csv(path)
+    if upload:
+        df, quality = load_upload(upload)
+    elif path.exists():
+        df, quality = load_csv(path)
+    else:
+        try: source_url = st.secrets.get("SUPERSTORE_CSV_URL", "")
+        except Exception: source_url = ""
+        if not source_url:
+            raise FileNotFoundError
+        df, quality = load_hosted(source_url)
 except FileNotFoundError:
-    st.info("Dataset not found. Add **Sample - Superstore.csv** to `data/raw/` or upload a CSV in the sidebar.")
-    st.markdown("Download the [Sample Superstore dataset](https://www.kaggle.com/datasets/vivek468/superstore-dataset-final) and place the CSV in `data/raw/`.")
+    st.info("Dataset source is not configured. Set `SUPERSTORE_CSV_URL` in Streamlit Cloud secrets to a stable HTTPS CSV source you are allowed to use, or add the CSV to `data/raw/` when running locally.")
     st.stop()
 except Exception as exc:
     st.error(f"Could not load the dataset: {exc}")
