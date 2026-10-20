@@ -1,64 +1,116 @@
-# RetailIQ — Business Profitability & Decision Intelligence
+# RetailIQ — Business Analytics Dashboard
 
-RetailIQ is a Streamlit analytics app for the Sample Superstore transaction dataset. It supports six focused views for executive performance, product profitability, discounts, customers, scenario sensitivity, and data quality. The interface uses a compact sidebar, shared filters, restrained styling, and Plotly charts.
+RetailIQ is a data analytics project that helps businesses understand their sales, profits, discounts, and customers through interactive charts and dashboards.
 
-## Dataset setup
+The project uses the Sample Superstore dataset and is built with Python and Streamlit.
 
-Download `Sample - Superstore.csv` from the [Kaggle Sample Superstore dataset](https://www.kaggle.com/datasets/vivek468/superstore-dataset-final). Place it at `data/raw/Sample - Superstore.csv`, or upload a CSV in the app. The app maps common Superstore column labels and requires Order Date, Sales, and Profit. No replacement data is generated. This repository does not include the dataset.
+## Live Demo
 
-## Run locally
+**Try the application:** https://venkataprabhath-retailiq.streamlit.app
 
-Python 3.11 or later is recommended.
+## Features
+
+- **Executive Overview:** View total sales, profit, profit margin, and order statistics.
+- **Profitability Analysis:** Identify profitable and unprofitable products.
+- **Discount Analysis:** Understand how different discount levels relate to sales and profit.
+- **Customer Analytics:** Analyze customer purchases and identify top customers.
+- **Decision Simulator:** Explore how hypothetical changes in sales and costs could affect profit.
+- **Data Quality:** Check missing values, duplicate records, and data issues.
+
+## Technologies Used
+
+- Python
+- Pandas
+- Streamlit
+- Plotly
+- PostgreSQL (optional)
+- SQL
+- Pytest
+
+## Getting Started
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/Venkata-Prabhath/RetailIQ.git
+cd RetailIQ
+```
+
+### 2. Install the dependencies
+
+Create a virtual environment and install the required packages.
+
+```bash
+python -m venv .venv
+```
+
+On Windows:
 
 ```powershell
-python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+```
+
+### 3. Add the dataset
+
+Download the [Sample Superstore dataset from Kaggle](https://www.kaggle.com/datasets/vivek468/superstore-dataset-final).
+
+Place the CSV file in this location:
+
+`data/raw/Sample - Superstore.csv`
+
+You can also upload a compatible CSV file directly through the application.
+
+### 4. Run the application
+
+```bash
 streamlit run app.py
 ```
 
-The app works in CSV-only mode without PostgreSQL. Locally, the CSV is read from `data/raw/`; on Community Cloud, it can load automatically from an owner-configured hosted CSV URL. The Kaggle upload used to obtain the current local copy does not show us an explicit redistribution grant, so the raw file remains excluded from GitHub. Kaggle documents that dataset licenses are publisher-selected and dataset-specific ([Kaggle dataset licensing](https://www.kaggle.com/docs/datasets)). Tableau lists a downloadable Superstore sample, but the page does not by itself establish a redistribution license ([Tableau sample data](https://public.tableau.com/app/learn/sample-data)). Do not use either source as a public mirror unless its applicable terms permit it.
+Open the local URL displayed in your terminal to use the dashboard.
 
-### Automatic data loading on Streamlit Community Cloud
+## Project Structure
 
-To show the populated dashboard without asking visitors to upload a file, host the CSV at a stable HTTPS endpoint that you are permitted to use, then add this secret in the deployed app's **Settings → Secrets** (or in **Advanced settings → Secrets** while deploying):
-
-```toml
-SUPERSTORE_CSV_URL = "https://your-permitted-host.example/Sample%20-%20Superstore.csv"
+```text
+RetailIQ/
+├── app.py                 # Main Streamlit application
+├── data/
+│   └── raw/               # Place the dataset here
+├── src/
+│   ├── data/               # Data loading and cleaning
+│   ├── analytics/          # Metrics and calculations
+│   └── database/           # Optional database operations
+├── sql/                    # SQL analytics queries
+├── tests/                  # Automated tests
+├── requirements.txt        # Python dependencies
+└── README.md               # Project documentation
 ```
 
-The URL must be a direct HTTPS URL returning the CSV bytes (not a Kaggle dataset page or a ZIP file). When the local file is absent, RetailIQ fetches and caches that CSV for one hour. Do not put access tokens in the URL. If the provider requires authentication, use an owner-controlled object store and extend the loader with read-only SDK credentials stored as Streamlit secrets. The raw dataset is never added to the GitHub repository. Streamlit saves cloud secrets outside GitHub; never commit `.streamlit/secrets.toml`.
+## SQL Analysis
 
-## PostgreSQL (optional)
+The project also includes SQL queries that answer business questions using techniques such as:
 
-Create a PostgreSQL database, copy `.env.example` to `.env`, and set `DATABASE_URL` to your own connection URL. Load an already prepared dataframe using `src.database.postgres.load_table(frame, if_exists="replace")` or `append`. Never commit `.env`. SQL examples in `sql/analytics.sql` operate on the normalized `superstore` table and are inspectable independently; the Streamlit demo does not require the database.
+- GROUP BY and aggregate functions
+- CASE statements
+- Common Table Expressions (CTEs)
+- Date-based analysis
+- Window functions
 
-## Analysis and metric definitions
+## Run Tests
 
-- Sales and profit are summed from source values; profit means the dataset's recorded profit measure.
-- Margin = total profit / total sales. Zero total sales yields no margin.
-- Orders counts distinct order IDs when available, otherwise rows. Average order value = sales / order count.
-- Negative profit is preserved. Duplicate rows are reported but not automatically removed. Invalid dates and numbers become missing.
-- Scenario results are sensitivity estimates based on explicit assumptions. There is no demand elasticity or verified cost model.
+Run the following command to execute the automated tests:
 
-The SQL collection demonstrates grouping, CASE, CTEs, date truncation, NULLIF, and window functions, answering 14 business questions. The dashboard avoids causal claims about discounting. Product costs, inventory, and stockout risk are not available.
-
-## Project structure
-
-`app.py` and `pages/` provide the interface; reusable transformations live under `src/data`; metrics and simulation under `src/analytics`; optional database access under `src/database`; SQL analyses under `sql`; unit tests under `tests`.
-
-## Tests
-
-```powershell
+```bash
 pytest
 ```
 
-Tests use small synthetic fixtures only. No real-data result is claimed until you provide the source CSV.
+## Notes
 
-## Deployment
+- The dataset is not included in this repository. Download it separately and check its license and usage terms.
+- PostgreSQL is optional. The dashboard can run directly from a CSV file.
+- The decision simulator provides hypothetical estimates, not guaranteed business forecasts.
+- The analysis uses the profit values available in the dataset.
 
-For Streamlit Community Cloud, push the project without the dataset or `.env`, configure `requirements.txt`, and set any production secrets in the platform settings. Users can upload the CSV at runtime. Configure PostgreSQL separately only if needed. Test deployment against the actual dataset and confirm the dataset license and redistribution terms before publishing any copy.
+## Project Goal
 
-## Screenshots
-
-Screenshots will be added after validating the application with the actual source dataset.
+The goal of RetailIQ is to demonstrate practical skills in data cleaning, exploratory data analysis, SQL, business analytics, data visualization, and interactive dashboard development.
