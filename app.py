@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import sys
 
 import pandas as pd
@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT))
 from src.data.pipeline import load_csv, load_csv_url, prepare_data, local_dataset_path
 from src.analytics.metrics import kpis, group_summary, monthly_trend, simulate
 
-st.set_page_config(page_title="RetailIQ | Business Analytics", page_icon="▦", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="RetailIQ | Business Analytics", page_icon="â–¦", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
@@ -39,7 +39,7 @@ div[data-testid="stAlert"] { border-radius:10px; }
 </style>
 """, unsafe_allow_html=True)
 
-@st.cache_data(show_spinner="Loading and validating data…")
+@st.cache_data(show_spinner="Loading and validating dataâ€¦")
 def load_upload(data):
     try:
         raw = pd.read_csv(data, encoding="utf-8-sig")
@@ -48,7 +48,7 @@ def load_upload(data):
         raw = pd.read_csv(data, encoding="cp1252")
     return prepare_data(raw)
 
-@st.cache_data(ttl=3600, show_spinner="Loading the configured hosted dataset…")
+@st.cache_data(ttl=3600, show_spinner="Loading the configured hosted datasetâ€¦")
 def load_hosted(source_url):
     return load_csv_url(source_url)
 
@@ -57,7 +57,7 @@ PAGES = ["Executive overview", "Profitability explorer", "Discount intelligence"
 with st.sidebar:
     st.markdown("<div class='eyebrow'>Business intelligence</div>", unsafe_allow_html=True)
     st.markdown("## RetailIQ")
-    st.caption("Sales · Profitability · Decisions")
+    st.caption("Sales Â· Profitability Â· Decisions")
     st.divider()
     page = st.radio("Workspace", PAGES, label_visibility="collapsed")
     st.divider()
@@ -89,7 +89,7 @@ except Exception as exc:
     st.stop()
 
 with st.sidebar:
-    st.success(f"{len(df):,} rows loaded", icon="✓")
+    st.success(f"{len(df):,} rows loaded")
     st.caption(f"Source: {source_label}")
     lo, hi = df.order_date.min(), df.order_date.max()
     if pd.notna(lo) and pd.notna(hi):
@@ -116,8 +116,8 @@ def header(title, description):
 
 def compact_money(value):
     if pd.isna(value):
-        return "—"
-    sign = "−" if value < 0 else ""
+        return "â€”"
+    sign = "âˆ’" if value < 0 else ""
     value = abs(float(value))
     if value >= 1_000_000:
         return f"{sign}${value / 1_000_000:.2f}M"
@@ -128,7 +128,7 @@ def compact_money(value):
     return f"{sign}${value:,.0f}"
 
 def money(value):
-    return "—" if pd.isna(value) else f"{'−' if value < 0 else ''}${abs(value):,.2f}"
+    return "â€”" if pd.isna(value) else f"{'âˆ’' if value < 0 else ''}${abs(value):,.2f}"
 
 def empty():
     st.info("No rows match the current filters. Adjust the date range or selections in the sidebar.")
@@ -159,7 +159,7 @@ if page == "Executive overview":
         empty(); st.stop()
     m = kpis(filtered)
     cards = st.columns(5, gap="medium")
-    values = [("Sales", compact_money(m["sales"]), f"Full value: {money(m['sales'])}"), ("Recorded profit", compact_money(m["profit"]), f"Full value: {money(m['profit'])}"), ("Profit margin", f"{m['margin']:.1%}" if pd.notna(m["margin"]) else "—", "Total recorded profit divided by total sales"), ("Orders", f"{m['orders']:,}", "Distinct order IDs where available"), ("Average order value", compact_money(m["aov"]), f"Full value: {money(m['aov'])}")]
+    values = [("Sales", compact_money(m["sales"]), f"Full value: {money(m['sales'])}"), ("Recorded profit", compact_money(m["profit"]), f"Full value: {money(m['profit'])}"), ("Profit margin", f"{m['margin']:.1%}" if pd.notna(m["margin"]) else "â€”", "Total recorded profit divided by total sales"), ("Orders", f"{m['orders']:,}", "Distinct order IDs where available"), ("Average order value", compact_money(m["aov"]), f"Full value: {money(m['aov'])}")]
     for col, (label, value, help_text) in zip(cards, values):
         col.metric(label, value, help=help_text)
     st.write("")
@@ -255,7 +255,7 @@ elif page == "Decision simulator":
         st.subheader("Scenario (modeled)")
         st.metric("Sales", compact_money(result["scenario_sales"]), help=f"Full value: {money(result['scenario_sales'])}")
         st.metric("Estimated profit", compact_money(result["scenario_profit"]), help=f"Full value: {money(result['scenario_profit'])}")
-        st.metric("Estimated margin", f"{result['scenario_margin']:.1%}" if pd.notna(result["scenario_margin"]) else "—")
+        st.metric("Estimated margin", f"{result['scenario_margin']:.1%}" if pd.notna(result["scenario_margin"]) else "â€”")
 
 else:
     header("Data quality & methodology", "Inspect source coverage, validation results, cleaning rules, and analytical limitations.")
