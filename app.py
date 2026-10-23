@@ -11,7 +11,8 @@ from streamlit.errors import StreamlitSecretNotFoundError
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
-from src.data.pipeline import load_csv, load_csv_url, prepare_data, local_dataset_path
+from src.data.pipeline import load_csv, load_csv_url, prepare_data, local_dataset_path, _read_csv_bytes, ALIASES
+from src.data.schema import infer_schema
 from src.analytics.metrics import kpis, group_summary, monthly_trend, simulate
 from src.reporting.reports import build_report, csv_export, excel_export, pdf_export
 
@@ -70,13 +71,12 @@ div[data-testid="stAlert"] {{ border-radius:10px; }}
 """, unsafe_allow_html=True)
 
 @st.cache_data(show_spinner="Loading and validating dataâ€¦")
-def load_upload(data):
-    try:
-        raw = pd.read_csv(data, encoding="utf-8-sig")
-    except UnicodeDecodeError:
-        data.seek(0)
-        raw = pd.read_csv(data, encoding="cp1252")
-    return prepare_data(raw)
+def read_upload(content):
+    return _read_csv_bytes(content)
+
+@st.cache_data(show_spinner="Mapping and validating uploaded dataâ€¦")
+def load_upload(content, mapping):
+    return prepare_data(read_upload(content), mapping)
 
 @st.cache_data(ttl=3600, show_spinner="Loading the configured hosted datasetâ€¦")
 def load_hosted(source_url):
@@ -96,7 +96,22 @@ with st.sidebar:
 try:
     data_source = os.getenv("DATA_SOURCE", "csv").lower()
     if upload:
-        df, quality = load_upload(upload)
+        upload_bytes=upload.getvalue()
+        raw_upload=read_upload(upload_bytes)
+        inferred=infer_schema(raw_upload)
+        mapping_rows=[]
+        for field in ALIASES:
+            info=inferred["suggestions"].get(field,{})
+            mapping_rows.append({"RetailIQ field":field,"Source column":info.get("source") or "",
+                "Candidate":info.get("candidate") or "","Confidence":f"{info.get('confidence',0):.0%}","Required":field in {"order_date","sales","profit"}})
+        with st.sidebar.expander("Review detected columns",expanded=bool(inferred["required_missing"])):
+            st.caption("Suggestions use column names and local sample values. Check uncertain mappings before relying on the analysis.")
+            edited=st.data_editor(pd.DataFrame(mapping_rows),hide_index=True,use_container_width=True,
+                disabled=["RetailIQ field","Candidate","Confidence","Required"],num_rows="fixed",
+                column_config={"Source column":st.column_config.SelectboxColumn("Source column",options=[""]+inferred["columns"],required=False)},
+                key="mapping_"+str(hash((upload.name,tuple(raw_upload.columns)))))
+        column_mapping={row["RetailIQ field"]:row["Source column"] for _,row in edited.iterrows() if row["Source column"]}
+        df, quality = load_upload(upload_bytes,column_mapping)
         source_label = upload.name
     elif data_source == "postgres":
         from src.database.postgres import query

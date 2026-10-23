@@ -39,12 +39,21 @@ def quality_summary(frame: pd.DataFrame) -> dict:
             "date_start": str(dates.min().date()) if dates.notna().any() else None,
             "date_end": str(dates.max().date()) if dates.notna().any() else None}
 
-def prepare_data(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+def prepare_data(frame: pd.DataFrame, column_mapping: dict[str, str] | None = None) -> tuple[pd.DataFrame, dict]:
     original = frame.copy(deep=True)
-    out = normalize_columns(frame.copy())
+    if column_mapping is None:
+        # Automatically map only high-confidence local schema matches. The UI
+        # exposes inferred candidates for review when required roles are unclear.
+        from src.data.schema import infer_schema, apply_schema_mapping
+        inferred=infer_schema(frame)
+        column_mapping={field:entry["source"] for field,entry in inferred["suggestions"].items() if entry.get("source")}
+        out = apply_schema_mapping(frame, column_mapping)
+    else:
+        from src.data.schema import apply_schema_mapping
+        out = apply_schema_mapping(frame, column_mapping)
     missing = sorted(REQUIRED - set(out.columns))
     if missing:
-        raise ValueError("Required columns unavailable: " + ", ".join(missing) + ". Expected at least Order Date, Sales, and Profit.")
+        raise ValueError("Required columns unavailable: " + ", ".join(missing) + ". Expected date, sales/revenue, and profit fields. Review or set column_mapping for unfamiliar source headings.")
     before = quality_summary(out)
     out["order_date"] = pd.to_datetime(out.order_date, errors="coerce", format="mixed")
     if "ship_date" in out: out["ship_date"] = pd.to_datetime(out.ship_date, errors="coerce", format="mixed")

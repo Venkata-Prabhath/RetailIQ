@@ -6,12 +6,13 @@ RetailIQ is a Streamlit dashboard and repeatable batch analytics workflow for th
 
 `CSV ingestion → column normalization and validation → rejected-row flags / valid transactions → idempotent PostgreSQL upsert (optional) → KPI and anomaly analysis → CSV, Excel, and PDF management reports → optional SMTP delivery`
 
-The existing six dashboard pages remain available. Dashboard uploads are limited to 50 MB. The dashboard defaults to local CSV mode. `DATA_SOURCE=postgres` explicitly selects the PostgreSQL transaction table for the dashboard.
+The existing six dashboard pages remain available. Dashboard uploads are limited to 50 MB. Uploaded CSV headings are inferred locally from known aliases, semantic name matches, and sample value types; a mapping editor lets you review or correct them before analysis. High-confidence mappings are applied automatically, and ambiguous required fields must be mapped by the user. The same high-confidence inference is available to the reusable pipeline and CLI. The dashboard defaults to local CSV mode. `DATA_SOURCE=postgres` explicitly selects the PostgreSQL transaction table for the dashboard.
 
 ## Structure
 
 - `app.py`: six-page Streamlit dashboard and downloadable reports
 - `src/data/pipeline.py`: ingestion, normalization, validation, row keys, source summaries
+- `src/data/schema.py`: local schema inference, candidate confidence, explicit source-to-RetailIQ field mapping
 - `src/analytics/metrics.py`: KPI, grouped, monthly, simulator, period comparisons
 - `src/analytics/anomalies.py`: explainable monthly and negative-profit checks
 - `src/database/postgres.py`: repeatable schema and transactional idempotent persistence
@@ -56,7 +57,7 @@ Set `SMTP_HOST`, `SMTP_PORT` (typically 587), `SMTP_USER`, `SMTP_PASSWORD`, `REP
 
 ## Metric, data, and anomaly notes
 
-- Required fields: Order Date, Sales, Profit. Invalid dates and missing or malformed required numeric measures are marked rejected; source rows remain in the quality counts.
+- Required concepts: transaction date, sales/revenue, and profit/earnings. Common aliases and recognizable synonyms are inferred; the upload mapping editor handles unfamiliar headings. If neither names nor values identify a role, it must be mapped manually. Invalid dates and missing or malformed required numeric measures are marked rejected; source rows remain in the quality counts.
 - Negative profit is retained. Duplicate source rows are retained and reported.
 - Margin is total recorded profit divided by total sales. Average order value is sales divided by distinct order IDs.
 - Period comparisons use the immediately preceding window with the same number of calendar days. Zero or missing baselines produce unavailable percentage changes.

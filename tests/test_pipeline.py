@@ -8,6 +8,7 @@ from src.analytics.metrics import period_comparison
 from src.analytics.anomalies import detect_anomalies
 from src.reporting.reports import build_report, excel_export, pdf_export
 from src.cli import run
+from src.data.schema import infer_schema
 
 @pytest.fixture
 def raw():
@@ -104,3 +105,19 @@ def test_postgres_configuration_failure_is_clear(monkeypatch):
     from src.database.postgres import engine_from_env
     with pytest.raises(RuntimeError,match="CSV mode"):
         engine_from_env()
+
+def test_arbitrary_schema_headers_are_inferred_and_analyzed():
+    raw=pd.DataFrame({"purchased_on":["2025-01-01","2025-01-02"],"gross_revenue":[25,30],"net_earnings":[3,4],
+      "ticket_id":["t1","t2"],"item_title":["Cup","Plate"],"department":["Home","Home"]})
+    inferred=infer_schema(raw)
+    assert inferred["required_missing"]==[]
+    df,quality=prepare_data(raw)
+    assert df.sales.tolist()==[25,30] and df.profit.tolist()==[3,4]
+    assert quality["valid_rows"]==2 and kpis(df)["orders"]==2
+
+def test_ambiguous_headers_require_explicit_mapping():
+    raw=pd.DataFrame({"when_value":["2025-01-01"],"metric_a":[10],"metric_b":[2]})
+    with pytest.raises(ValueError,match="column_mapping"):
+        prepare_data(raw)
+    df,_=prepare_data(raw,{"order_date":"when_value","sales":"metric_a","profit":"metric_b"})
+    assert kpis(df)["sales"]==10 and kpis(df)["profit"]==2
