@@ -1,15 +1,19 @@
 ﻿from pathlib import Path
 import sys
+import os
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from dotenv import load_dotenv
 from streamlit.errors import StreamlitSecretNotFoundError
 
 ROOT = Path(__file__).resolve().parent
+load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 from src.data.pipeline import load_csv, load_csv_url, prepare_data, local_dataset_path
 from src.analytics.metrics import kpis, group_summary, monthly_trend, simulate
+from src.reporting.reports import build_report, csv_export, excel_export, pdf_export
 
 st.set_page_config(page_title="RetailIQ | Business Analytics", page_icon="â–¦", layout="wide", initial_sidebar_state="expanded")
 
@@ -86,13 +90,22 @@ with st.sidebar:
     page = st.radio("Workspace", PAGES, label_visibility="collapsed")
     st.divider()
     st.markdown("**Data source**")
-    upload = st.file_uploader("Upload Superstore CSV", type="csv", help="Use a CSV with Order Date, Sales, and Profit columns.")
+    upload = st.file_uploader("Upload Superstore CSV", type="csv", help="Use a CSV with Order Date, Sales, and Profit columns. Maximum 50 MB.", max_upload_size=50)
     path = local_dataset_path()
 
 try:
+    data_source = os.getenv("DATA_SOURCE", "csv").lower()
     if upload:
         df, quality = load_upload(upload)
         source_label = upload.name
+    elif data_source == "postgres":
+        from src.database.postgres import query
+        rows = query("SELECT payload FROM retail_transactions ORDER BY order_date")
+        raw = pd.DataFrame([value if isinstance(value, dict) else __import__("json").loads(value) for value in rows.payload])
+        df, quality = prepare_data(raw)
+        source_label = "PostgreSQL retail_transactions"
+    elif data_source != "csv":
+        raise ValueError("DATA_SOURCE must be csv or postgres.")
     elif path.exists():
         df, quality = load_csv(path)
         source_label = path.name
@@ -109,13 +122,26 @@ except FileNotFoundError:
     st.error(f"Dataset not found at `{path}` and no hosted source is configured. In Streamlit Community Cloud, add `SUPERSTORE_CSV_URL = \"https://your-host/path/Sample%20-%20Superstore.csv\"` in app Secrets. Locally, place the CSV at `{path}`.")
     st.stop()
 except Exception as exc:
-    st.error(f"Could not load the dataset: {exc}")
+    if "data_source" in locals() and data_source == "postgres":
+        st.error("Could not load the configured PostgreSQL source. Check DATABASE_URL, the initialized schema, and DATA_SOURCE=postgres.")
+    else:
+        st.error(f"Could not load the dataset: {exc}")
     st.stop()
 
 with st.sidebar:
-    st.success(f"{len(df):,} rows loaded")
+    analytics_df = df[~df.quality_rejected].copy() if "quality_rejected" in df else df.copy()
+    st.success(f"{len(analytics_df):,} valid rows loaded")
+    if quality["rejected_rows"]:
+        st.warning(f"{quality['rejected_rows']:,} rows have validation failures and are excluded from analytics; see Data quality & methodology.")
     st.caption(f"Source: {source_label}")
-    lo, hi = df.order_date.min(), df.order_date.max()
+    report = build_report(df, quality)
+    st.download_button("Download management report (PDF)", pdf_export(report), "retailiq_management_report.pdf", "application/pdf")
+    st.download_button("Download management report (Excel)", excel_export(report), "retailiq_management_report.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.download_button("Download regional summary (CSV)", csv_export(report["regions"]), "retailiq_regions.csv", "text/csv")
+    if report["anomalies"]:
+        with st.expander(f"Explainable alerts ({len(report['anomalies'])})"):
+            st.dataframe(pd.DataFrame(report["anomalies"]), use_container_width=True, hide_index=True)
+    lo, hi = analytics_df.order_date.min(), analytics_df.order_date.max()
     if pd.notna(lo) and pd.notna(hi):
         dates = st.date_input("Order date range", (lo.date(), hi.date()), min_value=lo.date(), max_value=hi.date())
         start, end = dates if isinstance(dates, tuple) and len(dates) == 2 else (lo.date(), hi.date())
@@ -123,11 +149,11 @@ with st.sidebar:
         start = end = None
     filters = {}
     for col, label in [("region", "Region"), ("segment", "Segment"), ("category", "Category")]:
-        if col in df:
-            opts = sorted(df[col].dropna().astype(str).unique())
+        if col in analytics_df:
+            opts = sorted(analytics_df[col].dropna().astype(str).unique())
             filters[col] = st.multiselect(label, opts, default=opts, placeholder=f"All {label.lower()}s")
 
-filtered = df.copy()
+filtered = analytics_df.copy()
 if start is not None:
     filtered = filtered[filtered.order_date.dt.date.between(start, end)]
 for col, vals in filters.items():
@@ -303,3 +329,6 @@ else:
     st.subheader("Available fields")
     st.write(", ".join(df.columns))
     st.download_button("Download filtered rows", filtered.to_csv(index=False), "retailiq_filtered.csv", "text/csv")
+    rejected = df[df.quality_rejected] if "quality_rejected" in df else df.iloc[0:0]
+    if len(rejected):
+        st.download_button("Download quarantined rows", rejected.to_csv(index=False), "retailiq_quarantine.csv", "text/csv")

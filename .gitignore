@@ -8,4 +8,9 @@ __pycache__/
 data/raw/*.csv
 data/processed/*
 reports/figures/*
+reports/*.pdf
+reports/*.xlsx
+reports/*.log
+reports/*.json
+reports/*.csv
 !.gitkeep

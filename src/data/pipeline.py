@@ -7,9 +7,10 @@ from urllib.request import Request, urlopen
 from urllib.parse import urlparse
 import pandas as pd
 import numpy as np
+import hashlib
 
 ALIASES = {
-    "order_id": ["order id", "order_id"], "order_date": ["order date", "order_date"],
+    "source_row_id": ["row id", "row_id"], "order_id": ["order id", "order_id"], "order_date": ["order date", "order_date"],
     "ship_date": ["ship date", "ship_date"], "ship_mode": ["ship mode", "ship_mode"],
     "customer_id": ["customer id", "customer_id"], "customer_name": ["customer name", "customer_name"],
     "segment": ["segment"], "country": ["country"], "city": ["city"], "state": ["state"],
@@ -32,7 +33,7 @@ def normalize_columns(frame: pd.DataFrame) -> pd.DataFrame:
     return frame.rename(columns=mapping)
 
 def quality_summary(frame: pd.DataFrame) -> dict:
-    dates = pd.to_datetime(frame["order_date"], errors="coerce") if "order_date" in frame else pd.Series(dtype="datetime64[ns]")
+    dates = pd.to_datetime(frame["order_date"], errors="coerce", format="mixed") if "order_date" in frame else pd.Series(dtype="datetime64[ns]")
     return {"rows": int(len(frame)), "columns": int(len(frame.columns)), "duplicates": int(frame.duplicated().sum()),
             "missing": {str(k): int(v) for k, v in frame.isna().sum().items()},
             "date_start": str(dates.min().date()) if dates.notna().any() else None,
@@ -45,10 +46,14 @@ def prepare_data(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     if missing:
         raise ValueError("Required columns unavailable: " + ", ".join(missing) + ". Expected at least Order Date, Sales, and Profit.")
     before = quality_summary(out)
-    out["order_date"] = pd.to_datetime(out.order_date, errors="coerce")
-    if "ship_date" in out: out["ship_date"] = pd.to_datetime(out.ship_date, errors="coerce")
+    out["order_date"] = pd.to_datetime(out.order_date, errors="coerce", format="mixed")
+    if "ship_date" in out: out["ship_date"] = pd.to_datetime(out.ship_date, errors="coerce", format="mixed")
+    numeric_failures = {}
     for col in NUMERIC:
-        if col in out: out[col] = pd.to_numeric(out[col], errors="coerce")
+        if col in out:
+            original_values = out[col].copy()
+            out[col] = pd.to_numeric(out[col], errors="coerce")
+            numeric_failures[col] = int((original_values.notna() & out[col].isna()).sum())
     out["year"] = out.order_date.dt.year
     out["month"] = out.order_date.dt.month
     out["year_month"] = out.order_date.dt.to_period("M").astype("string")
@@ -60,10 +65,38 @@ def prepare_data(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     out["quality_negative_sales"] = out.sales < 0
     out["quality_zero_sales"] = out.sales == 0
     out["quality_negative_profit"] = out.profit < 0
+    # A source_row_id is a defensible key when supplied (as in Sample Superstore).
+    # Otherwise fingerprint normalized source values and occurrence number, so
+    # identical rows retain multiplicity while reruns remain idempotent.
+    if "source_row_id" in out and out.source_row_id.notna().all() and out.source_row_id.is_unique:
+        out["record_key"] = "source:" + out.source_row_id.astype(str)
+        key_method = "source_row_id"
+    else:
+        source = out.drop(columns=[c for c in ["record_key"] if c in out], errors="ignore")
+        if len(source):
+            canonical = source.astype("string").fillna("<NULL>").agg("|".join, axis=1)
+            fingerprints = canonical.map(lambda value: hashlib.sha256(value.encode("utf-8")).hexdigest())
+        else:
+            fingerprints = pd.Series(index=out.index, dtype="object")
+        occurrence = fingerprints.groupby(fingerprints, sort=False).cumcount()
+        out["record_key"] = fingerprints + ":" + occurrence.astype(str)
+        key_method = "sha256_normalized_row_plus_duplicate_occurrence"
+    invalid_date = out.quality_invalid_date
+    invalid_numeric = pd.Series(False, index=out.index)
+    for col in ["sales", "profit"]:
+        if col not in out:
+            invalid_numeric |= True
+        else:
+            invalid_numeric |= out[col].isna()
+    out["quality_rejected"] = invalid_date | invalid_numeric
     return out, {"before": before, "after": quality_summary(out), "source_rows": len(original),
                  "invalid_order_dates": int(out.quality_invalid_date.sum()), "negative_sales": int(out.quality_negative_sales.sum()),
                  "zero_sales": int(out.quality_zero_sales.sum()), "negative_profit": int(out.quality_negative_profit.sum()),
-                 "cleaning_rules": ["Preserve source rows and negative-profit transactions.", "Parse dates and numeric measures safely; invalid values become missing.", "Duplicate rows are reported, not removed automatically.", "Overall margin is total profit divided by total sales."]}
+                 "numeric_conversion_failures": numeric_failures,
+                 "valid_rows": int((~out.quality_rejected).sum()), "rejected_rows": int(out.quality_rejected.sum()),
+                 "duplicate_rows": int(out.duplicated(subset=[c for c in out.columns if not c.startswith("quality_") and c not in {"record_key", "year", "month", "year_month", "profit_margin", "discount_band"}], keep="first").sum()),
+                 "validation_failures": int(out.quality_rejected.sum()), "key_method": key_method,
+                 "cleaning_rules": ["Preserve source values and negative-profit transactions.", "Unparseable dates and required numeric measures are quarantined from analytics, never deleted.", "Exact duplicates are retained and keyed by occurrence; repeated ingestion is idempotent.", "Overall margin is total profit divided by total sales."]}
 
 def load_csv(path) -> tuple[pd.DataFrame, dict]:
     try:

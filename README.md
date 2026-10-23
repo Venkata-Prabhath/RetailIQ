@@ -1,116 +1,80 @@
-# RetailIQ — Business Analytics Dashboard
+﻿# RetailIQ
 
-RetailIQ is a data analytics project that helps businesses understand their sales, profits, discounts, and customers through interactive charts and dashboards.
+RetailIQ is a Streamlit dashboard and repeatable batch analytics workflow for the historical Sample Superstore dataset. The supplied file covers 2014–2017 transaction dates and is a static sample, not a live feed.
 
-The project uses the Sample Superstore dataset and is built with Python and Streamlit.
+## Architecture and workflow
 
-## Live Demo
+`CSV ingestion → column normalization and validation → rejected-row flags / valid transactions → idempotent PostgreSQL upsert (optional) → KPI and anomaly analysis → CSV, Excel, and PDF management reports → optional SMTP delivery`
 
-**Try the application:** https://venkataprabhath-retailiq.streamlit.app
+The existing six dashboard pages remain available. Dashboard uploads are limited to 50 MB. The dashboard defaults to local CSV mode. `DATA_SOURCE=postgres` explicitly selects the PostgreSQL transaction table for the dashboard.
 
-## Features
+## Structure
 
-- **Executive Overview:** View total sales, profit, profit margin, and order statistics.
-- **Profitability Analysis:** Identify profitable and unprofitable products.
-- **Discount Analysis:** Understand how different discount levels relate to sales and profit.
-- **Customer Analytics:** Analyze customer purchases and identify top customers.
-- **Decision Simulator:** Explore how hypothetical changes in sales and costs could affect profit.
-- **Data Quality:** Check missing values, duplicate records, and data issues.
+- `app.py`: six-page Streamlit dashboard and downloadable reports
+- `src/data/pipeline.py`: ingestion, normalization, validation, row keys, source summaries
+- `src/analytics/metrics.py`: KPI, grouped, monthly, simulator, period comparisons
+- `src/analytics/anomalies.py`: explainable monthly and negative-profit checks
+- `src/database/postgres.py`: repeatable schema and transactional idempotent persistence
+- `src/reporting/reports.py`: report calculation and CSV, XLSX, PDF export
+- `src/cli.py`: standalone batch command, logging, optional email delivery
+- `sql/schema.sql`, `sql/analytics.sql`: schema and query examples
 
-## Technologies Used
-
-- Python
-- Pandas
-- Streamlit
-- Plotly
-- PostgreSQL (optional)
-- SQL
-- Pytest
-
-## Getting Started
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/Venkata-Prabhath/RetailIQ.git
-cd RetailIQ
-```
-
-### 2. Install the dependencies
-
-Create a virtual environment and install the required packages.
-
-```bash
-python -m venv .venv
-```
-
-On Windows:
+## Local setup
 
 ```powershell
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-### 3. Add the dataset
-
-Download the [Sample Superstore dataset from Kaggle](https://www.kaggle.com/datasets/vivek468/superstore-dataset-final).
-
-Place the CSV file in this location:
-
-`data/raw/Sample - Superstore.csv`
-
-You can also upload a compatible CSV file directly through the application.
-
-### 4. Run the application
-
-```bash
+Copy-Item .env.example .env
 streamlit run app.py
 ```
 
-Open the local URL displayed in your terminal to use the dashboard.
+Place the CSV at `data/raw/Sample - Superstore.csv` or upload one in the app. The CLI and dashboard load an optional local `.env`; process environment variables take precedence.
 
-## Project Structure
+## Batch reports
 
-```text
-RetailIQ/
-├── app.py                 # Main Streamlit application
-├── data/
-│   └── raw/               # Place the dataset here
-├── src/
-│   ├── data/               # Data loading and cleaning
-│   ├── analytics/          # Metrics and calculations
-│   └── database/           # Optional database operations
-├── sql/                    # SQL analytics queries
-├── tests/                  # Automated tests
-├── requirements.txt        # Python dependencies
-└── README.md               # Project documentation
+```powershell
+python -m src.cli --source "data/raw/Sample - Superstore.csv"
+python -m src.cli --source "data/raw/Sample - Superstore.csv" --weekly --email
 ```
 
-## SQL Analysis
+The command writes `reports/retailiq_management_report.pdf`, `.xlsx`, a regional `.csv`, a rejected-row quarantine CSV, `last_run.json`, and structured `pipeline.log`. The same source file is fingerprinted and PostgreSQL loading is skipped if already successfully ingested; report generation may still be repeated. Use a new changed source snapshot for new ingestion. A historical sample should not be presented as daily incoming transactions.
 
-The project also includes SQL queries that answer business questions using techniques such as:
+For daily execution, schedule the first command in Windows Task Scheduler or cron. For weekly management delivery, schedule the `--weekly --email` command once per week. The weekly option labels the report frequency; it does not manufacture a rolling week from a historical snapshot. Configure task working directory as the repository root. Set `REPORT_EMAIL_TO` only to an approved recipient.
 
-- GROUP BY and aggregate functions
-- CASE statements
-- Common Table Expressions (CTEs)
-- Date-based analysis
-- Window functions
+## PostgreSQL
 
-## Run Tests
+CSV-only operation requires no database. To enable PostgreSQL, set `DATABASE_URL`, then run any CLI batch (repeatable schema initialization occurs automatically). Transaction records use `Row ID` when present and unique. `Order ID` is not a transaction key because multiple line items belong to the same order. Other datasets use a SHA-256 fingerprint of normalized row values plus a duplicate occurrence number, which preserves identical source rows while making retries idempotent.
 
-Run the following command to execute the automated tests:
+Tables: `retail_transactions`, `pipeline_runs`, `data_quality_results`, and `kpi_snapshots`. Writes use a transaction and key-based upserts; no routine execution drops tables. Rejected rows are counted and reported but excluded from the processed transaction table. Stable source row IDs support correction updates. Content-fingerprint keys cannot identify changed versions of a transaction when a source has no stable key; source deletions are not inferred from incremental batches. `DATA_SOURCE=postgres` selects the processed database table in Streamlit.
 
-```bash
-pytest
+For local Docker, `docker compose up --build` starts PostgreSQL with a persistent volume and a health check. The default password is for local development only. Change `POSTGRES_PASSWORD` for a private deployment; do not expose this compose service to the public internet.
+
+## Email configuration
+
+Set `SMTP_HOST`, `SMTP_PORT` (typically 587), `SMTP_USER`, `SMTP_PASSWORD`, `REPORT_EMAIL_FROM`, and `REPORT_EMAIL_TO` in the scheduler's secret environment. Delivery uses STARTTLS. Email is disabled unless `--email` is supplied and a recipient is configured. Failures are logged; the CLI attempts a concise failure notification when email is enabled.
+
+## Metric, data, and anomaly notes
+
+- Required fields: Order Date, Sales, Profit. Invalid dates and missing or malformed required numeric measures are marked rejected; source rows remain in the quality counts.
+- Negative profit is retained. Duplicate source rows are retained and reported.
+- Margin is total recorded profit divided by total sales. Average order value is sales divided by distinct order IDs.
+- Period comparisons use the immediately preceding window with the same number of calendar days. Zero or missing baselines produce unavailable percentage changes.
+- Management reports summarize the trailing 365 calendar days through the latest valid transaction date and compare against the preceding 365 days. Monthly anomalies compare with the preceding three observed monthly buckets and use configurable drop/spike percentages in `detect_anomalies`. Regional/category alerts flag significant monthly movement, product alerts flag cumulative losses, and repeat-run quality alerts flag rejection-rate deterioration. Alerts identify a review need, not its cause.
+- Customer repeat order analysis is supported when customer and order identifiers exist. Data does not establish discount causality, stock risk, or demand elasticity.
+
+## Tests
+
+```powershell
+python -m pytest -q
 ```
 
-## Notes
+Tests cover transformations, period comparisons, anomaly thresholds, report exports, and CLI behavior. PostgreSQL integration requires a separately configured test database; by default database behavior is verified through isolated/mocked tests.
 
-- The dataset is not included in this repository. Download it separately and check its license and usage terms.
-- PostgreSQL is optional. The dashboard can run directly from a CSV file.
-- The decision simulator provides hypothetical estimates, not guaranteed business forecasts.
-- The analysis uses the profit values available in the dataset.
+## Deployment
 
-## Project Goal
+Streamlit Community Cloud can host the dashboard. Because the supplied dataset is ignored by Git, configure the app secret `SUPERSTORE_CSV_URL` to a stable HTTPS source or upload a CSV for the session. It does not provide a persistent PostgreSQL service, scheduler, or SMTP relay. Run batch jobs, PostgreSQL, and SMTP from separately managed infrastructure (for example a private VM/container host plus OS scheduler). Configure secrets in the deployment's secret manager. Keep dashboard hosting instructions separate from the local Docker workflow.
 
-The goal of RetailIQ is to demonstrate practical skills in data cleaning, exploratory data analysis, SQL, business analytics, data visualization, and interactive dashboard development.
+## Limitations
+
+This project uses a historical sample dataset and recorded values. Repeated runs do not turn it into a live feed. Source file licensing and permitted redistribution must be confirmed by the operator. Missing comparison history, customer identity, or fields are shown as unavailable rather than imputed.
